@@ -1,0 +1,61 @@
+/* ==================== BASE ==================== */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 24px 16px 40px;
+  background: #FFFBF5;
+  color: #1B1814;
+  font-family: 'Grandstander', cursive;
+}
+
+/* ==================== HEADER ==================== */
+.to-header { max-width: 1200px; margin: 0 auto 20px; }
+.to-header h1 { margin: 0; font-size: 32px; font-weight: 700; color: #DD4826; }
+.to-tagline { margin: 4px 0 0; font-size: 18px; font-weight: 600; }
+.to-status { margin: 8px 0 0; font-size: 13px; font-weight: 700; color: #6B6B6B; }
+
+/* ==================== TIMELINE ==================== */
+.to-timeline {
+  max-width: 1200px;
+  margin: 0 auto 20px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  counter-reset: step;
+}
+.to-timeline li {
+  counter-increment: step;
+  padding: 6px 12px;
+  border: 1px solid #1B1814;
+  border-radius: 6px;
+  background: #FFFFFF;
+  font-size: 14px;
+  font-weight: 700;
+}
+.to-timeline li::before { content: counter(step) ". "; }
+.to-timeline li.is-current { background: #DD4826; color: #FFFBF5; }
+
+/* ==================== PANELS ==================== */
+.to-panels {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .to-panels { grid-template-columns: repeat(3, 1fr); }
+}
+.to-panel {
+  min-height: 240px;
+  padding: 16px;
+  background: #FFFFFF;
+  border: 1px solid #1B1814;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(27, 24, 20, 0.08);
+}
+.to-panel h2 { margin: 0 0 12px; font-size: 22px; font-weight: 700; }
+.to-empty { margin: 0; font-size: 15px; color: #6B6B6B; }
