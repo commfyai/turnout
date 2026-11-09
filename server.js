@@ -130,8 +130,11 @@ app.post('/api/campaigns/:id/authorize', async (req, res) => {
   const c = getCampaign(req, res)
   if (!c) return
   if (c.stage !== 'proposed') return res.status(409).json({ error: 'This budget is already held.' })
-  const orderId = req.body?.orderId || c.paypal.orderId
+  // Only the order this server created for this campaign can be authorized.
+  const orderId = c.paypal.orderId
   if (!orderId) return res.status(400).json({ error: 'No PayPal order to authorize.' })
+  if (c.busy) return res.status(409).json({ error: 'Already talking to PayPal. One moment.' })
+  c.busy = true
   try {
     const budget = c.request.budget * 100
     const { authorization } = await paypal.authorizeOrder(orderId, budget)
@@ -139,21 +142,28 @@ app.post('/api/campaigns/:id/authorize', async (req, res) => {
     c.paypal.holdExpires = authorization.expiration_time
     ledger(c, { step: 'Hold', what: 'Brand approved; PayPal holds the full budget', from: c.request.brand, to: 'PayPal hold', pence: budget, api: 'Orders v2: authorize', paypalId: authorization.id, status: authorization.status })
 
-    const depositTotal = c.plan.reduce((s, p) => s + p.deposit, 0)
-    const cap = await paypal.captureAuthorization(authorization.id, depositTotal, { finalCapture: false, note: 'Turnout: organiser deposits' })
-    c.paypal.captured = depositTotal
-    ledger(c, { step: 'Hold', what: `Deposits captured from the hold (${RULES.deposit * 100}% of organiser shares)`, from: 'PayPal hold', to: 'Commfy', pence: depositTotal, api: 'Payments v2: capture (partial)', paypalId: cap.id, status: cap.status })
+    // PayPal rejects zero amounts, so a £0 deposit (tiny budgets) is skipped, not sent.
+    const deposits = c.plan.filter((p) => p.deposit > 0)
+    const depositTotal = deposits.reduce((s, p) => s + p.deposit, 0)
+    c.paypal.captured = 0
+    if (depositTotal > 0) {
+      const cap = await paypal.captureAuthorization(authorization.id, depositTotal, { finalCapture: false, note: 'Turnout: organiser deposits' })
+      c.paypal.captured = depositTotal
+      ledger(c, { step: 'Hold', what: `Deposits captured from the hold (${RULES.deposit * 100}% of organiser shares)`, from: 'PayPal hold', to: 'Commfy', pence: depositTotal, api: 'Payments v2: capture (partial)', paypalId: cap.id, status: cap.status })
 
-    const batch = await paypal.sendPayouts(
-      c.plan.map((p) => ({ email: p.contact.email, pence: p.deposit, note: `Deposit from ${c.request.brand} for ${p.event.title}`, ref: `${c.id}-dep-${p.communityId}`.slice(0, 63) })),
-      { subject: `Your deposit from ${c.request.brand} is here`, batchRef: `${c.id}-deposits` },
-    )
-    c.plan.forEach((p) => ledger(c, { step: 'Hold', what: `Deposit to ${p.name}`, from: 'Commfy', to: p.contact.email, pence: p.deposit, api: 'Payouts v1: batch', paypalId: batch.batchId, status: batch.status }))
+      const batch = await paypal.sendPayouts(
+        deposits.map((p) => ({ email: p.contact.email, pence: p.deposit, note: `Deposit from ${c.request.brand} for ${p.event.title}`, ref: `${c.id}-dep-${p.communityId}`.slice(0, 63) })),
+        { subject: `Your deposit from ${c.request.brand} is here`, batchRef: `${c.id}-deposits` },
+      )
+      deposits.forEach((p) => ledger(c, { step: 'Hold', what: `Deposit to ${p.name}`, from: 'Commfy', to: p.contact.email, pence: p.deposit, api: 'Payouts v1: batch', paypalId: batch.batchId, status: batch.status }))
+    }
     c.stage = 'event'
     res.json(c)
   } catch (err) {
     ledger(c, { step: 'Hold', what: 'PayPal call failed', from: '', to: '', pence: 0, api: '', paypalId: '', status: `FAILED: ${err.message}` })
     res.status(502).json({ error: err.message })
+  } finally {
+    c.busy = false
   }
 })
 
@@ -253,6 +263,9 @@ app.post('/api/campaigns/:id/release', async (req, res) => {
   const c = getCampaign(req, res)
   if (!c) return
   if (c.stage !== 'event') return res.status(409).json({ error: 'Payouts can be released once, after the events.' })
+  // The dashboard re-renders every few seconds, so a second click can arrive mid-release.
+  if (c.busy) return res.status(409).json({ error: 'Payouts are already being released.' })
+  c.busy = true
   try {
     const budget = c.request.budget * 100
     const results = c.plan.map((p) => {
@@ -271,7 +284,7 @@ app.post('/api/campaigns/:id/release', async (req, res) => {
     }
     c.paypal.captured += toCapture
     const returned = budget - c.paypal.captured
-    if (returned > 0) ledger(c, { step: 'Payouts', what: 'Never captured: released back to the brand', from: 'PayPal hold', to: c.request.brand, pence: returned, api: 'Payments v2: final_capture', paypalId: c.paypal.authorizationId, status: 'RELEASED' })
+    if (returned > 0) ledger(c, { step: 'Payouts', what: 'Never captured: released back to the brand', from: 'PayPal hold', to: c.request.brand, pence: returned, api: toCapture > 0 ? 'Payments v2: capture (final_capture: true)' : 'Payments v2: void', paypalId: c.paypal.authorizationId, status: 'RELEASED' })
 
     const paid = results.filter((r) => r.rest > 0)
     if (paid.length) {
@@ -281,7 +294,8 @@ app.post('/api/campaigns/:id/release', async (req, res) => {
       )
       paid.forEach((r) => ledger(c, { step: 'Payouts', what: `Rest of share to ${r.p.name} (${Math.round((r.n / r.p.signups) * 100)}% turnout)`, from: 'Commfy', to: r.p.contact.email, pence: r.rest, api: 'Payouts v1: batch', paypalId: batch.batchId, status: batch.status }))
     }
-    results.filter((r) => !r.met).forEach((r) => ledger(c, { step: 'Payouts', what: `${r.p.name} under ${RULES.minTurnout * 100}% turnout: rest not paid, deposit kept`, from: 'PayPal hold', to: c.request.brand, pence: r.p.rest + r.p.commfy, api: '', paypalId: '', status: 'RETURNED' }))
+    // Information only (no amount): this money is already counted in the "released back to the brand" row.
+    results.filter((r) => !r.met).forEach((r) => ledger(c, { step: 'Payouts', what: `${r.p.name} under ${RULES.minTurnout * 100}% turnout: organiser keeps the deposit; ${gbp(r.p.rest + r.p.commfy)} of this event's share is not taken from the brand`, from: 'PayPal hold', to: c.request.brand, pence: 0, api: '', paypalId: '', status: 'NOT TAKEN' }))
     const membersTotal = results.reduce((s, r) => s + r.members, 0)
     ledger(c, { step: 'Payouts', what: `Member wallets: £1 × ${membersTotal / 100} verified check-ins, ready to cash out`, from: 'Commfy', to: 'Member wallets', pence: membersTotal, api: 'Payouts v1 on cash-out', paypalId: '', status: 'AVAILABLE' })
     const commfyTotal = results.reduce((s, r) => s + r.commfy, 0)
@@ -295,6 +309,8 @@ app.post('/api/campaigns/:id/release', async (req, res) => {
   } catch (err) {
     ledger(c, { step: 'Payouts', what: 'PayPal call failed', from: '', to: '', pence: 0, api: '', paypalId: '', status: `FAILED: ${err.message}` })
     res.status(502).json({ error: err.message })
+  } finally {
+    c.busy = false
   }
 })
 
