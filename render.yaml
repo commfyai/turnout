@@ -1,0 +1,24 @@
+# Render blueprint: render.com → New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: turnout
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: AZURE_OPENAI_ENDPOINT
+        sync: false
+      - key: AZURE_OPENAI_KEY
+        sync: false
+      - key: AZURE_OPENAI_DEPLOYMENT
+        value: gpt-chat-latest
+      - key: CURRENCY
+        value: GBP
+      - key: CHECKIN_SECRET
+        generateValue: true
