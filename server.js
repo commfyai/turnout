@@ -85,7 +85,8 @@ app.post('/api/campaigns', async (req, res) => {
     const slice = i === match.picks.length - 1 ? left : Math.round((budgetPence * p.weight) / totalWeight)
     left -= slice
     const commfy = Math.round(slice * RULES.commfyShare)
-    const members = Math.min(com.regulars * RULES.perCheckIn, slice - commfy)
+    // Whole £1s only, so the members' part is always a whole number of check-ins.
+    const members = Math.min(com.regulars, Math.floor((slice - commfy) / RULES.perCheckIn)) * RULES.perCheckIn
     const organiser = slice - commfy - members
     const deposit = Math.round(organiser * RULES.deposit)
     return {
@@ -232,7 +233,7 @@ app.post('/api/checkin', (req, res) => {
   if (Number.isFinite(lat) && Number.isFinite(lng)) location = distanceKm({ lat, lng }, com) <= 1 ? 'at venue' : 'away from venue'
   // £1 per check-in only up to the members' part of this event's budget,
   // so wallets never hold more than the final capture takes.
-  const credited = list.length * RULES.perCheckIn < p.members
+  const credited = (list.length + 1) * RULES.perCheckIn <= p.members
   const rating = [1, 2, 3, 4, 5].includes(Number(belonging)) ? Number(belonging) : null
   list.push({ member: ref, at: new Date().toISOString(), via: 'own phone', codeWindow: w, location, belonging: rating, answer: c.match.brandQuestion.options.includes(answer) ? answer : null })
 
@@ -291,7 +292,7 @@ app.post('/api/campaigns/:id/release', async (req, res) => {
     }
     c.paypal.captured += toCapture
     const returned = budget - c.paypal.captured
-    if (returned > 0) ledger(c, { step: 'Payouts', what: 'Never captured: released back to the brand', from: 'PayPal hold', to: c.request.brand, pence: returned, api: toCapture > 0 ? 'Payments v2: capture (final_capture: true)' : 'Payments v2: void', paypalId: c.paypal.authorizationId, status: 'RELEASED' })
+    if (returned > 0) ledger(c, { step: 'Payouts', what: 'Never captured: released back to the brand', from: 'PayPal hold', to: c.request.brand, pence: returned, api: toCapture > 0 ? 'Payments v2: final_capture' : 'Payments v2: void', paypalId: c.paypal.authorizationId, status: 'RELEASED' })
 
     const paid = results.filter((r) => r.rest > 0)
     if (paid.length) {
