@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Turnout check-in</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Grandstander:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="to-phone">
+  <main id="app"><p class="to-empty">Loading…</p></main>
+  <p class="to-footer">Made-up event. PayPal sandbox only, no real money.</p>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id)
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch])
+    const gbp = (p) => `£${(p / 100).toFixed(2)}`
+    const q = new URL(location.href).searchParams
+    const ids = { campaignId: q.get('c'), eventId: q.get('e'), code: q.get('k') }
+    const app = $('app')
+    let email = localStorage.getItem('turnout-email') || ''
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options, body: options.body ? JSON.stringify(options.body) : undefined })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { const e = new Error(data.error || 'Something went wrong'); e.data = data; throw e }
+      return data
+    }
+
+    function getLocation() {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) return resolve({})
+        navigator.geolocation.getCurrentPosition((p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }), () => resolve({}), { timeout: 4000 })
+      })
+    }
+
+    async function showForm() {
+      let ev
+      try { ev = await api(`/api/campaigns/${ids.campaignId}/event/${ids.eventId}`) } catch (err) { app.innerHTML = `<p class="to-error">${esc(err.message)}</p>`; return }
+      const bq = ev.brandQuestion
+      app.innerHTML = `
+        <p class="to-kicker">${esc(ev.community)}</p>
+        <h1>${esc(ev.event.title)}</h1>
+        <p class="to-small">${esc(ev.event.venue)}</p>
+        <p class="to-sponsor">Tonight is supported by <strong>${esc(ev.brand)}</strong>. Check in and ${esc(ev.brand)} puts £1 in your wallet.</p>
+        <form id="f" class="to-form">
+          <label>Your PayPal email<input name="email" type="email" required value="${esc(email)}" placeholder="you@example.com"></label>
+          <fieldset><legend>How welcome did you feel tonight? (optional)</legend>
+            <div class="to-scale">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="belonging" value="${n}"><span>${n}</span></label>`).join('')}</div>
+          </fieldset>
+          <fieldset><legend>${esc(bq.text)} (optional)</legend>
+            <div class="to-choices">${bq.options.map((o) => `<label><input type="radio" name="answer" value="${esc(o)}"><span>${esc(o)}</span></label>`).join('')}</div>
+          </fieldset>
+          <p class="to-small">Your £1 is paid whatever you answer. Your location is checked once against the venue.</p>
+          <button class="to-btn" type="submit">Check in</button>
+          <p class="to-error" id="err"></p>
+        </form>`
+      $('f').addEventListener('submit', async (e) => {
+        e.preventDefault()
+        const btn = e.target.querySelector('button')
+        btn.disabled = true
+        btn.textContent = 'Checking in…'
+        const form = Object.fromEntries(new FormData(e.target))
+        email = form.email
+        localStorage.setItem('turnout-email', email)
+        try {
+          const out = await api('/api/checkin', { method: 'POST', body: { ...ids, ...form, ...(await getLocation()) } })
+          showWallet(out.wallet, `You're in. Location: ${out.location}.`, ev.brand)
+        } catch (err) {
+          if (err.data?.wallet) return showWallet(err.data.wallet, err.message, ev.brand)
+          $('err').textContent = err.message
+          btn.disabled = false
+          btn.textContent = 'Check in'
+        }
+      })
+    }
+
+    function showWallet(w, message, brand) {
+      const canCashOut = w.available >= w.minCashOut
+      app.innerHTML = `
+        <p class="to-ok">${esc(message)}</p>
+        <h1>Your wallet</h1>
+        <p class="to-big">${gbp(w.available)}</p>
+        <p class="to-small">${w.pending ? `${gbp(w.pending)} on its way: it unlocks once the event closes and ${esc(brand)}'s payment is released.` : 'Nothing pending.'}</p>
+        <ul class="to-list">${[...w.entries].reverse().map((e) => `
+          <li><strong>${gbp(e.pence)}</strong> ${e.event ? `Your £1 for ${esc(e.event)} is from ${esc(e.from)}` : `from ${esc(e.from)}`}
+          <span class="to-pill ${e.status === 'available' ? 'is-met' : ''}">${esc(e.status)}</span></li>`).join('')}</ul>
+        ${w.available ? `<button class="to-btn" id="cash" ${canCashOut ? '' : 'disabled'}>Cash out ${gbp(w.available)} to PayPal</button>` : ''}
+        <p class="to-small">${canCashOut ? `Paid by PayPal Payouts to ${esc(w.email)}.` : `Cash-out opens at ${gbp(w.minCashOut)}.`}</p>
+        ${w.cashouts.map((c) => `<p class="to-small">Cashed out ${gbp(c.pence)} · PayPal batch ${esc(c.batchId)} · ${esc(c.status)}</p>`).join('')}
+        <p class="to-error" id="err"></p>`
+      if ($('cash')) $('cash').onclick = async () => {
+        try { showWallet(await api('/api/wallet/cashout', { method: 'POST', body: { email: w.email } }), 'Sent to PayPal.', brand) } catch (err) { $('err').textContent = err.message }
+      }
+      clearTimeout(window.walletPoll)
+      if (w.pending) window.walletPoll = setTimeout(async () => { try { showWallet(await api(`/api/wallet?email=${encodeURIComponent(w.email)}`), message, brand) } catch {} }, 4000)
+    }
+
+    showForm()
+  </script>
+</body>
+</html>
