@@ -1,0 +1,156 @@
+[
+  {
+    "id": "marshgate-milers",
+    "name": "Marshgate Morning Milers",
+    "area": "Hackney, East London",
+    "lat": 51.5552, "lng": -0.0335,
+    "interests": ["running", "fitness", "outdoors"],
+    "regulars": 46,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Priya (made up)", "email": "organiser.marshgate@example.com" },
+    "event": { "title": "Saturday 5K and coffee", "venue": "Hackney Marshes changing rooms" }
+  },
+  {
+    "id": "lea-lantern-cyclists",
+    "name": "Lea Valley Lantern Cyclists",
+    "area": "Tower Hamlets, East London",
+    "lat": 51.5246, "lng": -0.0118,
+    "interests": ["cycling", "fitness", "outdoors", "night rides"],
+    "regulars": 31,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Tom (made up)", "email": "organiser.lantern@example.com" },
+    "event": { "title": "Thursday night towpath ride", "venue": "Three Mills Island" }
+  },
+  {
+    "id": "mile-end-boulder-crew",
+    "name": "Mile End Boulder Crew",
+    "area": "Mile End, East London",
+    "lat": 51.5246, "lng": -0.0331,
+    "interests": ["climbing", "fitness", "students"],
+    "regulars": 27,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Ade (made up)", "email": "organiser.boulder@example.com" },
+    "event": { "title": "Beginners' bouldering social", "venue": "A climbing wall under the railway arches" }
+  },
+  {
+    "id": "stratford-student-founders",
+    "name": "Stratford Student Founders",
+    "area": "Stratford, East London",
+    "lat": 51.5413, "lng": -0.0032,
+    "interests": ["startups", "tech", "students", "careers"],
+    "regulars": 40,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Mei (made up)", "email": "organiser.founders@example.com" },
+    "event": { "title": "Pitch night and pizza", "venue": "A campus lecture theatre" }
+  },
+  {
+    "id": "whitechapel-tongue-twisters",
+    "name": "Whitechapel Tongue Twisters",
+    "area": "Whitechapel, East London",
+    "lat": 51.5194, "lng": -0.0612,
+    "interests": ["languages", "social", "students", "travel"],
+    "regulars": 38,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Luca (made up)", "email": "organiser.tongues@example.com" },
+    "event": { "title": "Language swap night", "venue": "A café back room" }
+  },
+  {
+    "id": "dalston-dice-night",
+    "name": "Dalston Dice Night",
+    "area": "Dalston, East London",
+    "lat": 51.5463, "lng": -0.0752,
+    "interests": ["board games", "social", "gaming"],
+    "regulars": 34,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Sam (made up)", "email": "organiser.dice@example.com" },
+    "event": { "title": "Big box board game evening", "venue": "A community hall" }
+  },
+  {
+    "id": "shoreditch-sketchbook-club",
+    "name": "Shoreditch Sketchbook Club",
+    "area": "Shoreditch, East London",
+    "lat": 51.5255, "lng": -0.0786,
+    "interests": ["art", "drawing", "creative"],
+    "regulars": 21,
+    "acceptsBrandFunding": false,
+    "organiser": { "name": "Ola (made up)", "email": "organiser.sketch@example.com" },
+    "event": { "title": "Life drawing and tea", "venue": "A studio loft" }
+  },
+  {
+    "id": "walthamstow-wetland-wanderers",
+    "name": "Walthamstow Wetland Wanderers",
+    "area": "Walthamstow, North East London",
+    "lat": 51.5807, "lng": -0.0507,
+    "interests": ["nature", "walking", "birdwatching", "outdoors"],
+    "regulars": 19,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Jo (made up)", "email": "organiser.wetland@example.com" },
+    "event": { "title": "Dawn bird walk", "venue": "The reservoir paths" }
+  },
+  {
+    "id": "peckham-plant-swappers",
+    "name": "Peckham Plant Swappers",
+    "area": "Peckham, South London",
+    "lat": 51.4740, "lng": -0.0692,
+    "interests": ["plants", "sustainability", "gardening"],
+    "regulars": 28,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Kemi (made up)", "email": "organiser.plants@example.com" },
+    "event": { "title": "Cuttings swap", "venue": "A railway-arch garden" }
+  },
+  {
+    "id": "brixton-long-table",
+    "name": "Brixton Long Table",
+    "area": "Brixton, South London",
+    "lat": 51.4613, "lng": -0.1156,
+    "interests": ["food", "cooking", "social"],
+    "regulars": 24,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Dev (made up)", "email": "organiser.longtable@example.com" },
+    "event": { "title": "Bring-a-dish supper", "venue": "A church hall kitchen" }
+  },
+  {
+    "id": "camden-reel-circle",
+    "name": "Camden Reel Circle",
+    "area": "Camden, North London",
+    "lat": 51.5390, "lng": -0.1426,
+    "interests": ["film", "cinema", "discussion"],
+    "regulars": 22,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Ana (made up)", "email": "organiser.reel@example.com" },
+    "event": { "title": "Short film night and chat", "venue": "A pub function room" }
+  },
+  {
+    "id": "greenwich-sunrise-stretch",
+    "name": "Greenwich Sunrise Stretch",
+    "area": "Greenwich, South East London",
+    "lat": 51.4769, "lng": -0.0005,
+    "interests": ["yoga", "wellbeing", "fitness", "outdoors"],
+    "regulars": 26,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Nia (made up)", "email": "organiser.stretch@example.com" },
+    "event": { "title": "Park yoga at sunrise", "venue": "Greenwich Park, by the observatory" }
+  },
+  {
+    "id": "clapton-five-a-side",
+    "name": "Clapton Women's Five-a-Side",
+    "area": "Clapton, East London",
+    "lat": 51.5617, "lng": -0.0560,
+    "interests": ["football", "sport", "fitness"],
+    "regulars": 32,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Rosa (made up)", "email": "organiser.fiveaside@example.com" },
+    "event": { "title": "Wednesday kickabout", "venue": "Floodlit cage pitches" }
+  },
+  {
+    "id": "bermondsey-slow-readers",
+    "name": "Bermondsey Slow Readers",
+    "area": "Bermondsey, South London",
+    "lat": 51.4979, "lng": -0.0637,
+    "interests": ["books", "reading", "discussion"],
+    "regulars": 16,
+    "acceptsBrandFunding": true,
+    "organiser": { "name": "Will (made up)", "email": "organiser.readers@example.com" },
+    "event": { "title": "Book club, chapter 1–6", "venue": "A taproom upstairs" }
+  }
+]
