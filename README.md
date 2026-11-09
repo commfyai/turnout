@@ -22,8 +22,8 @@ Open http://localhost:3000. It works straight away with **no keys**: PayPal runs
 ## Try the whole loop (under 5 minutes)
 
 1. **Request:** keep the sample brand or write your own, then press *Ask Commfy's AI*.
-2. **Approve + hold:** read the AI's picks and the money split, then approve. PayPal holds the whole budget and pays each organiser a 30% deposit.
-3. **Event day:** press *Show door code* and scan it with your phone (or open the link) to check in. Your £1 appears in your wallet with the brand's name on it.
+2. **Approve + hold:** read the AI's picks and the money split, then approve. PayPal holds the whole budget and pays each organiser a deposit of 30% of their share.
+3. **Event day:** press *Show door code* and scan it with your phone (or open the link) to check in. Your £1 appears in your wallet with the brand's name on it. On your own machine the QR code points at the address you opened, so for a phone open the dashboard by your computer's network address (or use the deployed link); location needs HTTPS and shows "not shared" otherwise.
 4. Press *Fill the rest of the crowd* to add simulated members. The third event is left under the 60% minimum on purpose.
 5. **Payouts:** press *Close events and release payouts*. PayPal captures only what was earned, pays the organisers, and the rest of the hold goes back to the brand.
 6. **Proof:** read the proof report, download the check-in record, and cash out your wallet on your phone.

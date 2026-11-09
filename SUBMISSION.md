@@ -24,10 +24,10 @@ Turnout lets a brand fund real-life community events and pay only for verified t
 
 1. **Request.** The brand types its goal (product feedback or awareness), who it wants to reach, and a budget.
 2. **AI match.** Commfy's AI reads the request against a list of communities and picks 2–3 that fit, explains why, proposes what happens at each event, and writes one short question members can answer at check-in.
-3. **Approve and hold.** The brand approves in PayPal's window. PayPal holds the whole budget with an Orders API authorization. Each organiser gets a 30% deposit straight away, because venue and food are paid before the event.
+3. **Approve and hold.** The brand approves in PayPal's window. PayPal holds the whole budget with an Orders API authorization. Each organiser gets 30% of their share as a deposit straight away, because venue and food are paid before the event.
 4. **Event day.** Members check in by scanning a door code that changes every 30 seconds, on their own phones. Location is recorded as a second check. Each verified check-in puts £1 of the brand's money into the member's wallet, with the brand's name on it.
 5. **Payouts.** When the events close, PayPal captures only what was earned. An organiser whose event reached 60% of sign-ups gets the rest of their share through PayPal Payouts. Below 60%, the organiser keeps the deposit and the rest is never taken from the brand. Members cash out their wallet to their PayPal email from £2.
-6. **Proof.** The brand gets a report: how many people came to each event, how welcome they felt, the answers to its question, and where every pound went. Members appear only as anonymous references, and answers are shown only in groups of 5 or more. The full check-in record can be downloaded to audit.
+6. **Proof.** The brand gets a report: how many people came to each event, how welcome they felt, the answers to its question, and where every pound went. Members appear only as anonymous references, and answers are shown only once 5 or more people have answered. The full check-in record can be downloaded to audit.
 
 Every PayPal call appears in a live payout ledger, so a judge can follow the money from the brand's budget to each organiser and member.
 
@@ -41,7 +41,7 @@ Every PayPal call appears in a live payout ledger, so a judge can follow the mon
 ### Challenges we ran into
 
 - Keeping the money exact: every amount is held in pence, and the deposit, final capture and amount returned to the brand always add up to the budget.
-- Making proof hard to fake: the door code is signed by the server and changes every 30 seconds, each person can check in once per event, and money is released only above a minimum turnout.
+- Making proof hard to fake: the door code is signed by the server and changes every 30 seconds, each PayPal email can check in once per event, and money is released only above a minimum turnout.
 - Fitting the whole loop on one screen so it can be followed in a three-minute video.
 
 ### Accomplishments that we're proud of
