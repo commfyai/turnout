@@ -33,7 +33,8 @@ const campaigns = new Map()
 const wallets = new Map()
 
 const gbp = (pence) => `£${(pence / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const anon = (email) => `M-${crypto.createHash('sha256').update(email.toLowerCase()).digest('hex').slice(0, 6)}`
+// Keyed with the server secret so a reference can't be traced back to an email by guessing.
+const anon = (email) => `M-${crypto.createHmac('sha256', SECRET).update(email.toLowerCase()).digest('hex').slice(0, 6)}`
 
 function ledger(c, row) {
   c.ledger.push({ at: new Date().toISOString(), mode: paypal.mode(), ...row })
@@ -214,9 +215,11 @@ app.post('/api/checkin', (req, res) => {
   const c = campaigns.get(campaignId)
   const p = c?.plan.find((x) => x.communityId === eventId)
   if (!c || !p) return res.status(404).json({ error: 'Event not found.' })
-  if (c.stage !== 'event') return res.status(409).json({ error: c.stage === 'proposed' ? 'Check-in opens once the brand has approved.' : 'This event has closed.' })
+  if (c.stage !== 'event' || c.busy) return res.status(409).json({ error: c.stage === 'proposed' ? 'Check-in opens once the brand has approved.' : 'This event has closed.' })
+  // The code on screen changes every 30s; a scanned code stays valid for about 2 minutes,
+  // long enough to type an email and answer on a phone.
   const w = windowNow()
-  const codeOk = [w, w - 1].some((x) => doorCode(c.id, eventId, x) === String(code || '').toUpperCase())
+  const codeOk = [w, w - 1, w - 2, w - 3].some((x) => doorCode(c.id, eventId, x) === String(code || '').toUpperCase())
   if (!codeOk) return res.status(400).json({ error: 'That door code has expired. Scan the code on the screen again.' })
   if (!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Add the email you use for PayPal so your £1 can reach you.' })
 
@@ -227,11 +230,15 @@ app.post('/api/checkin', (req, res) => {
   const com = communityById(eventId)
   let location = 'not shared'
   if (Number.isFinite(lat) && Number.isFinite(lng)) location = distanceKm({ lat, lng }, com) <= 1 ? 'at venue' : 'away from venue'
-  list.push({ member: ref, at: new Date().toISOString(), via: 'own phone', codeWindow: w, location, belonging: Number(belonging) || null, answer: answer || null })
+  // £1 per check-in only up to the members' part of this event's budget,
+  // so wallets never hold more than the final capture takes.
+  const credited = list.length * RULES.perCheckIn < p.members
+  const rating = [1, 2, 3, 4, 5].includes(Number(belonging)) ? Number(belonging) : null
+  list.push({ member: ref, at: new Date().toISOString(), via: 'own phone', codeWindow: w, location, belonging: rating, answer: c.match.brandQuestion.options.includes(answer) ? answer : null })
 
   const wallet = walletFor(email)
-  wallet.entries.push({ pence: RULES.perCheckIn, from: c.request.brand, event: p.event.title, campaignId: c.id, at: new Date().toISOString(), status: 'pending' })
-  res.json({ ok: true, member: ref, location, wallet: walletView(wallet) })
+  if (credited) wallet.entries.push({ pence: RULES.perCheckIn, from: c.request.brand, event: p.event.title, campaignId: c.id, at: new Date().toISOString(), status: 'pending' })
+  res.json({ ok: true, member: ref, location, credited, wallet: walletView(wallet) })
 })
 
 // A button for judges: fill the rest of each crowd with simulated members.
@@ -332,7 +339,7 @@ function buildProof(c, results, returned, membersTotal, commfyTotal) {
     belonging: rated.length >= MIN_GROUP ? { average: Math.round((rated.reduce((s, x) => s + x.belonging, 0) / rated.length) * 10) / 10, answers: rated.length } : null,
     brandQuestion: answers.length >= MIN_GROUP ? { text: c.match.brandQuestion.text, counts, answers: answers.length } : null,
     money: { budget: c.request.budget * 100, captured: c.paypal.captured, returned, organisers: results.reduce((s, r) => s + r.p.deposit + r.rest, 0), members: membersTotal, commfy: commfyTotal },
-    privacy: 'No names or emails: each member is an anonymous reference, and answers are shown only in groups of 5 or more.',
+    privacy: 'No names or emails: each member is an anonymous reference, and answers are shown only once 5 or more people have answered.',
   }
 }
 

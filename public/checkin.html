@@ -45,7 +45,7 @@
         <p class="to-kicker">${esc(ev.community)}</p>
         <h1>${esc(ev.event.title)}</h1>
         <p class="to-small">${esc(ev.event.venue)}</p>
-        <p class="to-sponsor">Tonight is supported by <strong>${esc(ev.brand)}</strong>. Check in and ${esc(ev.brand)} puts £1 in your wallet.</p>
+        <p class="to-sponsor"><strong>${esc(ev.brand)}</strong> supports tonight's event. Check in and get £1 from ${esc(ev.brand)} in your wallet.</p>
         <form id="f" class="to-form">
           <label>Your PayPal email<input name="email" type="email" required value="${esc(email)}" placeholder="you@example.com"></label>
           <fieldset><legend>How welcome did you feel tonight? (optional)</legend>
@@ -68,7 +68,7 @@
         localStorage.setItem('turnout-email', email)
         try {
           const out = await api('/api/checkin', { method: 'POST', body: { ...ids, ...form, ...(await getLocation()) } })
-          showWallet(out.wallet, `You're in. Location: ${out.location}.`, ev.brand)
+          showWallet(out.wallet, `You're in. Location: ${out.location}.${out.credited ? '' : " This event's member rewards are all paid out."}`, ev.brand)
         } catch (err) {
           if (err.data?.wallet) return showWallet(err.data.wallet, err.message, ev.brand)
           $('err').textContent = err.message
