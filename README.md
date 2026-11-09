@@ -55,7 +55,7 @@ In production the brand money would go through PayPal's marketplace setup so the
 
 ## How it uses AI
 
-[`lib/ai.js`](lib/ai.js) sends the brand's request and the made-up community list to Azure OpenAI with a strict JSON schema. The model picks 2–3 communities, weights them, writes why, the deal at the event and one check-in question for the brand. The server, not the AI, turns the weights into money so the numbers always add up.
+[`lib/ai.js`](lib/ai.js) sends the brand's request and the made-up community list to Azure OpenAI with a strict JSON schema. The model picks 2–3 communities, weights them, writes why, the deal at the event and one check-in question for the brand. The server turns those weights into money, so the numbers always add up to the budget.
 
 ## Deploy on Render
 

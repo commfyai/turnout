@@ -120,6 +120,8 @@ function renderApprove() {
       onApprove: async (data) => setCampaign(await api(`/api/campaigns/${campaign.id}/authorize`, { method: 'POST', body: { orderId: data.orderID } })),
       onError: fail,
     }).render(holder)
+  } else if (config.paypalClientId) {
+    fail(new Error("PayPal's button didn't load. Check the PayPal client ID, then reload."))
   } else {
     const btn = document.createElement('button')
     btn.className = 'to-btn'
