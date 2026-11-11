@@ -104,9 +104,25 @@ app.post('/api/campaigns', async (req, res) => {
   res.json(c)
 })
 
-app.get('/api/campaigns/:id', (req, res) => {
+// Payout batches start PENDING; ask PayPal again when the dashboard asks (at most every 5 seconds).
+async function refreshPayouts(c) {
+  if (!paypal.isLive() || Date.now() - (c.payoutsCheckedAt || 0) < 5000) return
+  const open = c.ledger.filter((r) => r.api === 'Payouts v1: batch' && ['PENDING', 'PROCESSING'].includes(r.status))
+  if (!open.length) return
+  c.payoutsCheckedAt = Date.now()
+  for (const batchId of new Set(open.map((r) => r.paypalId))) {
+    try {
+      const status = await paypal.payoutStatus(batchId)
+      open.filter((r) => r.paypalId === batchId).forEach((r) => { r.status = status })
+    } catch { /* keep the last status; the next poll tries again */ }
+  }
+}
+
+app.get('/api/campaigns/:id', async (req, res) => {
   const c = getCampaign(req, res)
-  if (c) res.json(c)
+  if (!c) return
+  await refreshPayouts(c)
+  res.json(c)
 })
 
 // ==================== 2–3. APPROVE + HOLD: PayPal order (AUTHORIZE), then deposits ====================
@@ -353,10 +369,17 @@ app.get('/api/campaigns/:id/checkins.csv', (req, res) => {
 })
 
 // ==================== MEMBER WALLET ====================
-app.get('/api/wallet', (req, res) => {
+app.get('/api/wallet', async (req, res) => {
   const email = String(req.query.email || '')
   if (!wallets.has(email.toLowerCase())) return res.status(404).json({ error: 'No wallet yet. Check in at an event first.' })
-  res.json(walletView(walletFor(email)))
+  const w = walletFor(email)
+  // Same as the dashboard: a cash-out starts PENDING until PayPal finishes the batch.
+  if (paypal.isLive()) {
+    for (const co of w.cashouts.filter((x) => ['PENDING', 'PROCESSING'].includes(x.status))) {
+      try { co.status = await paypal.payoutStatus(co.batchId) } catch { /* try again next poll */ }
+    }
+  }
+  res.json(walletView(w))
 })
 
 app.post('/api/wallet/cashout', async (req, res) => {

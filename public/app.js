@@ -41,7 +41,9 @@ function render() {
   renderMoney()
   renderProof()
   clearInterval(poll)
-  if (stage === 'event') poll = setInterval(refresh, 3000)
+  // Keep polling after release until PayPal has finished every payout batch.
+  const payoutsOpen = campaign?.ledger.some((r) => ['PENDING', 'PROCESSING'].includes(r.status))
+  if (stage === 'event' || payoutsOpen) poll = setInterval(refresh, 3000)
 }
 
 async function refresh() {

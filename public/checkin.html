@@ -96,7 +96,8 @@
         try { showWallet(await api('/api/wallet/cashout', { method: 'POST', body: { email: w.email } }), 'Sent to PayPal.', brand) } catch (err) { $('err').textContent = err.message }
       }
       clearTimeout(window.walletPoll)
-      if (w.pending) window.walletPoll = setTimeout(async () => { try { showWallet(await api(`/api/wallet?email=${encodeURIComponent(w.email)}`), message, brand) } catch {} }, 4000)
+      const cashOutOpen = w.cashouts.some((c) => ['PENDING', 'PROCESSING'].includes(c.status))
+      if (w.pending || cashOutOpen) window.walletPoll = setTimeout(async () => { try { showWallet(await api(`/api/wallet?email=${encodeURIComponent(w.email)}`), message, brand) } catch {} }, 4000)
     }
 
     showForm()
