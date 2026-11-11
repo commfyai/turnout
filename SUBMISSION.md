@@ -66,7 +66,7 @@ PayPal Orders API, PayPal Payments API, PayPal Payouts API, Azure OpenAI, Node.j
 ### Links
 
 - Code: https://github.com/commfyai/turnout (AGPL-3.0)
-- Live demo: (add the Render link)
+- Live demo: https://turnout-9vy5.onrender.com (PayPal sandbox; the free server sleeps when idle, so the first visit can take about a minute)
 - Video: (add the YouTube link)
 
 All communities, people and numbers in the demo are made up. It runs on the PayPal sandbox only.
