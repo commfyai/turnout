@@ -48,9 +48,7 @@ function getCampaign(req, res) {
 
 // ==================== BASICS ====================
 app.get('/api/health', (req, res) => {
-  // TEMP: fingerprints (never the values) to check the deployed AI settings match the working ones.
-  const fp = (v) => (v ? `${v.length} chars, #${crypto.createHash('sha256').update(v).digest('hex').slice(0, 8)}` : 'missing')
-  res.json({ ok: true, paypal: paypal.isLive(), ai: ai.isLive(), aiCheck: { endpoint: fp(process.env.AZURE_OPENAI_ENDPOINT), key: fp(process.env.AZURE_OPENAI_KEY), deployment: process.env.AZURE_OPENAI_DEPLOYMENT || 'default' } })
+  res.json({ ok: true, paypal: paypal.isLive(), ai: ai.isLive() })
 })
 
 app.get('/api/config', (req, res) => {
