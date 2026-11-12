@@ -45,35 +45,35 @@
         <p class="to-kicker">${esc(ev.community)}</p>
         <h1>${esc(ev.event.title)}</h1>
         <p class="to-small">${esc(ev.event.venue)}</p>
-        <p class="to-sponsor"><strong>${esc(ev.brand)}</strong> supports tonight's event. Check in and get £1 from ${esc(ev.brand)} in your wallet.</p>
+        <p class="to-sponsor"><strong>${esc(ev.brand)}</strong> supports tonight's event. Answer two quick questions and get £1 from ${esc(ev.brand)} in your wallet. No app or account needed.</p>
         <form id="f" class="to-form">
           <label>Your PayPal email<input name="email" type="email" required value="${esc(email)}" placeholder="you@example.com"></label>
-          <fieldset><legend>How welcome did you feel tonight? (optional)</legend>
-            <div class="to-scale">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="belonging" value="${n}"><span>${n}</span></label>`).join('')}</div>
+          <fieldset><legend>How welcome did you feel tonight?</legend>
+            <div class="to-scale">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="belonging" value="${n}" required><span>${n}</span></label>`).join('')}</div>
           </fieldset>
-          <fieldset><legend>${esc(bq.text)} (optional)</legend>
-            <div class="to-choices">${bq.options.map((o) => `<label><input type="radio" name="answer" value="${esc(o)}"><span>${esc(o)}</span></label>`).join('')}</div>
+          <fieldset><legend>${esc(bq.text)}</legend>
+            <div class="to-choices">${bq.options.map((o) => `<label><input type="radio" name="answer" value="${esc(o)}" required><span>${esc(o)}</span></label>`).join('')}</div>
           </fieldset>
           <p class="to-small">Your £1 is paid whatever you answer. Your location is checked once against the venue.</p>
-          <button class="to-btn" type="submit">Check in</button>
+          <button class="to-btn" type="submit">Send answers and get £1</button>
           <p class="to-error" id="err"></p>
         </form>`
       $('f').addEventListener('submit', async (e) => {
         e.preventDefault()
         const btn = e.target.querySelector('button')
         btn.disabled = true
-        btn.textContent = 'Checking in…'
+        btn.textContent = 'Sending…'
         const form = Object.fromEntries(new FormData(e.target))
         email = form.email
         localStorage.setItem('turnout-email', email)
         try {
           const out = await api('/api/checkin', { method: 'POST', body: { ...ids, ...form, ...(await getLocation()) } })
-          showWallet(out.wallet, `You're in. Location: ${out.location}.${out.credited ? '' : " This event's member rewards are all paid out."}`, ev.brand)
+          showWallet(out.wallet, `Thanks for answering. Location: ${out.location}.${out.credited ? '' : " This event's survey rewards are all paid out."}`, ev.brand)
         } catch (err) {
           if (err.data?.wallet) return showWallet(err.data.wallet, err.message, ev.brand)
           $('err').textContent = err.message
           btn.disabled = false
-          btn.textContent = 'Check in'
+          btn.textContent = 'Send answers and get £1'
         }
       })
     }
@@ -86,7 +86,7 @@
         <p class="to-big">${gbp(w.available)}</p>
         <p class="to-small">${w.pending ? `${gbp(w.pending)} on its way: it unlocks once the event closes and ${esc(brand)}'s payment is released.` : 'Nothing pending.'}</p>
         <ul class="to-list">${[...w.entries].reverse().map((e) => `
-          <li><strong>${gbp(e.pence)}</strong> ${e.event ? `Your £1 for ${esc(e.event)} is from ${esc(e.from)}` : `from ${esc(e.from)}`}
+          <li><strong>${gbp(e.pence)}</strong> ${e.event ? `Your £1 for answering at ${esc(e.event)} is from ${esc(e.from)}` : `from ${esc(e.from)}`}
           <span class="to-pill ${e.status === 'available' ? 'is-met' : ''}">${esc(e.status)}</span></li>`).join('')}</ul>
         ${w.available ? `<button class="to-btn" id="cash" ${canCashOut ? '' : 'disabled'}>Cash out ${gbp(w.available)} to PayPal</button>` : ''}
         <p class="to-small">${canCashOut ? `Paid by PayPal Payouts to ${esc(w.email)}.` : `Cash-out opens at ${gbp(w.minCashOut)}.`}</p>

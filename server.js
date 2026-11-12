@@ -19,7 +19,7 @@ const RULES = {
   commfyShare: 0.15, // Commfy keeps 15% of each community's slice
   deposit: 0.3, // organisers get 30% of their share when the brand approves
   minTurnout: 0.6, // the rest is released only if 60% of sign-ups check in
-  perCheckIn: 100, // £1 (in pence) into the member's wallet per verified check-in
+  perSurvey: 100, // £1 (in pence) into the member's wallet per survey answered at the event
   minCashOut: 200, // members cash out from £2
   codeSeconds: 30, // the door code changes every 30 seconds
 }
@@ -86,7 +86,7 @@ app.post('/api/campaigns', async (req, res) => {
     left -= slice
     const commfy = Math.round(slice * RULES.commfyShare)
     // Whole £1s only, so the members' part is always a whole number of check-ins.
-    const members = Math.min(com.regulars, Math.floor((slice - commfy) / RULES.perCheckIn)) * RULES.perCheckIn
+    const members = Math.min(com.regulars, Math.floor((slice - commfy) / RULES.perSurvey)) * RULES.perSurvey
     const organiser = slice - commfy - members
     const deposit = Math.round(organiser * RULES.deposit)
     return {
@@ -239,22 +239,25 @@ app.post('/api/checkin', (req, res) => {
   const codeOk = [w, w - 1, w - 2, w - 3].some((x) => doorCode(c.id, eventId, x) === String(code || '').toUpperCase())
   if (!codeOk) return res.status(400).json({ error: 'That door code has expired. Scan the code on the screen again.' })
   if (!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Add the email you use for PayPal so your £1 can reach you.' })
+  // The £1 is for the survey: both questions answered (any answer).
+  const rating = [1, 2, 3, 4, 5].includes(Number(belonging)) ? Number(belonging) : null
+  const brandAnswer = c.match.brandQuestion.options.includes(answer) ? answer : null
+  if (!rating || !brandAnswer) return res.status(400).json({ error: 'Answer both questions to get your £1.' })
 
   const ref = anon(email)
   const list = c.checkins[eventId]
-  if (list.some((x) => x.member === ref)) return res.status(409).json({ error: 'You are already checked in to this event.', wallet: walletView(walletFor(email)) })
+  if (list.some((x) => x.member === ref)) return res.status(409).json({ error: 'You have already answered for this event.', wallet: walletView(walletFor(email)) })
 
   const com = communityById(eventId)
   let location = 'not shared'
   if (Number.isFinite(lat) && Number.isFinite(lng)) location = distanceKm({ lat, lng }, com) <= 1 ? 'at venue' : 'away from venue'
-  // £1 per check-in only up to the members' part of this event's budget,
+  // £1 per survey only up to the members' part of this event's budget,
   // so wallets never hold more than the final capture takes.
-  const credited = (list.length + 1) * RULES.perCheckIn <= p.members
-  const rating = [1, 2, 3, 4, 5].includes(Number(belonging)) ? Number(belonging) : null
-  list.push({ member: ref, at: new Date().toISOString(), via: 'own phone', codeWindow: w, location, belonging: rating, answer: c.match.brandQuestion.options.includes(answer) ? answer : null })
+  const credited = (list.length + 1) * RULES.perSurvey <= p.members
+  list.push({ member: ref, at: new Date().toISOString(), via: 'own phone', codeWindow: w, location, belonging: rating, answer: brandAnswer })
 
   const wallet = walletFor(email)
-  if (credited) wallet.entries.push({ pence: RULES.perCheckIn, from: c.request.brand, event: p.event.title, campaignId: c.id, at: new Date().toISOString(), status: 'pending' })
+  if (credited) wallet.entries.push({ pence: RULES.perSurvey, from: c.request.brand, event: p.event.title, campaignId: c.id, at: new Date().toISOString(), status: 'pending' })
   res.json({ ok: true, member: ref, location, credited, wallet: walletView(wallet) })
 })
 
@@ -275,7 +278,7 @@ app.post('/api/campaigns/:id/crowd', (req, res) => {
         member: `M-sim${String(list.length + 1).padStart(3, '0')}`,
         at: new Date().toISOString(), via: 'simulated phone', codeWindow: windowNow(), location: 'at venue',
         belonging: r < 0.1 ? 3 : r < 0.55 ? 4 : 5,
-        answer: Math.random() < 0.8 ? opts[Math.min(opts.length - 1, Math.floor(Math.random() ** 1.6 * opts.length))] : null,
+        answer: opts[Math.min(opts.length - 1, Math.floor(Math.random() ** 1.6 * opts.length))],
       })
     }
   })
@@ -295,7 +298,7 @@ app.post('/api/campaigns/:id/release', async (req, res) => {
     const results = c.plan.map((p) => {
       const n = c.checkins[p.communityId].length
       const met = n / p.signups >= RULES.minTurnout
-      const members = Math.min(n * RULES.perCheckIn, p.members)
+      const members = Math.min(n * RULES.perSurvey, p.members)
       return { p, n, met, members, commfy: met ? p.commfy : 0, rest: met ? p.rest : 0 }
     })
     const toCapture = results.reduce((s, r) => s + r.members + r.commfy + r.rest, 0)
@@ -321,7 +324,7 @@ app.post('/api/campaigns/:id/release', async (req, res) => {
     // Information only (no amount): this money is already counted in the "released back to the brand" row.
     results.filter((r) => !r.met).forEach((r) => ledger(c, { step: 'Payouts', what: `${r.p.name} under ${RULES.minTurnout * 100}% turnout: organiser keeps the deposit; ${gbp(r.p.rest + r.p.commfy)} of this event's share is not taken from the brand`, from: 'PayPal hold', to: c.request.brand, pence: 0, api: '', paypalId: '', status: 'NOT TAKEN' }))
     const membersTotal = results.reduce((s, r) => s + r.members, 0)
-    ledger(c, { step: 'Payouts', what: `Member wallets: £1 × ${membersTotal / 100} verified check-ins, ready to cash out`, from: 'Commfy', to: 'Member wallets', pence: membersTotal, api: 'Payouts v1 on cash-out', paypalId: '', status: 'AVAILABLE' })
+    ledger(c, { step: 'Payouts', what: `Member wallets: £1 × ${membersTotal / 100} surveys answered at the events, ready to cash out`, from: 'Commfy', to: 'Member wallets', pence: membersTotal, api: 'Payouts v1 on cash-out', paypalId: '', status: 'AVAILABLE' })
     const commfyTotal = results.reduce((s, r) => s + r.commfy, 0)
     ledger(c, { step: 'Payouts', what: `Commfy's ${RULES.commfyShare * 100}% on events that hit the minimum`, from: 'Commfy', to: 'Commfy', pence: commfyTotal, api: '', paypalId: '', status: 'KEPT' })
 

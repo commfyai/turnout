@@ -98,7 +98,7 @@ function renderBrand(stage) {
       <p class="to-label">${m.source === 'ai' ? `Commfy's AI (${esc(m.model)})` : 'Rule-based match'}</p>
       <p>${esc(m.summary)}</p>
       <p><strong>At each event:</strong> ${esc(m.deal)}</p>
-      <p><strong>Question at check-in:</strong> ${esc(m.brandQuestion.text)} <span class="to-small">(${m.brandQuestion.options.map(esc).join(' / ')})</span></p>
+      <p><strong>Survey question at the door:</strong> ${esc(m.brandQuestion.text)} <span class="to-small">(${m.brandQuestion.options.map(esc).join(' / ')})</span></p>
       ${m.note ? `<p class="to-small">${esc(m.note)}</p>` : ''}
     </div>
     <div id="approve"></div>
@@ -161,7 +161,7 @@ function renderCommunities(stage) {
             <div><dt>Members</dt><dd>${gbp(p.members)}</dd></div>
             <div><dt>Commfy</dt><dd>${gbp(p.commfy)}</dd></div>
           </dl>
-          <p class="to-small">Organiser: ${gbp(p.deposit)} deposit on approval, ${gbp(p.rest)} on proof. Members: £1 per check-in.</p>` : `
+          <p class="to-small">Organiser: ${gbp(p.deposit)} deposit on approval, ${gbp(p.rest)} on proof. Members: £1 per survey answered.</p>` : `
           <div class="to-bar" role="img" aria-label="${n} of ${p.signups} checked in">
             <span style="width:${pct}%" class="${pct >= min * 100 ? 'is-met' : ''}"></span>
             <i style="left:${min * 100}%"></i>
