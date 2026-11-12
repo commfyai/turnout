@@ -6,6 +6,8 @@ Turnout is Commfy's entry for PayPal's "Build What's Next with PayPal and AI" ha
 
 All communities, members and numbers in this repo are made up. It runs on the PayPal **sandbox** only, so no real money moves.
 
+**Live demo:** https://turnout-9vy5.onrender.com (PayPal sandbox; the free server sleeps when idle, so the first visit can take about a minute)
+
 ## Run it
 
 You need Node 20 or newer.
@@ -56,6 +58,22 @@ In production the brand money would go through PayPal's marketplace setup so the
 ## How it uses AI
 
 [`lib/ai.js`](lib/ai.js) sends the brand's request and the made-up community list to Azure OpenAI with a strict JSON schema. The model picks 2–3 communities, weights them, writes why, the deal at the event, one check-in question for the brand, and the recommended payout mix for the brand's goal. The server checks the mix, keeps the 30% base, the 10% bonus and every cap fixed, and turns it all into money, so the numbers always add up to the budget.
+
+## Built with
+
+| Tool | What it does in Turnout |
+| --- | --- |
+| **PayPal JavaScript SDK** | The brand approves its budget in PayPal's own window |
+| **PayPal Orders API v2** | Creates and authorizes the order: the hold on the whole budget |
+| **PayPal Payments API v2** | Partial capture for organisers' base pay; final capture of only what was earned, releasing the rest |
+| **PayPal Payouts API v1** | Batch payouts to organisers and member wallet cash-outs, with status checks until each batch completes |
+| **Azure OpenAI** (`gpt-chat-latest`) | Picks the communities, the deal, the survey question and the organiser payout mix (strict JSON schema) |
+| **AG Grid** (sponsor) | The live PayPal payout ledger under "Show how PayPal moves the money": every PayPal call with amount, API, PayPal ID and status, sortable and filterable |
+| **Render** (sponsor) | Hosts the live demo from this repo via the `render.yaml` Blueprint, redeploying on every push |
+| Node.js, Express, plain HTML/CSS/JS | The app; no build step, in-memory demo state, money in pence |
+| QRCode.js | The rotating door code members scan |
+| Claude Code | Used to build the project |
+| Playwright | End-to-end tests of the full loop against the PayPal sandbox |
 
 ## Deploy on Render
 
