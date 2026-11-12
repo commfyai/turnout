@@ -73,18 +73,18 @@ All communities, people and numbers in the demo are made up. It runs on the PayP
 
 ---
 
-## Demo video script (about 2:50)
+## Demo video script (2:39, timed to the video "Turnout demo - talk over this")
 
 Record the screen at the live Render link, with a phone beside you for the check-in. No music.
 
 | Time | On screen | Say |
 | --- | --- | --- |
-| 0:00–0:20 | The Turnout page, empty form | "Brands pay for reach they can't check, and community organisers pay for events out of their own pocket. Turnout lets a brand fund real community events and pay only for the people who showed up." |
-| 0:20–0:45 | Type the brand, goal, audience and £1,500 budget. Press *Ask Commfy*. | "A brand tells Commfy what it wants: here, a new oat drink wants feedback from active people in East London, with a budget of fifteen hundred pounds." |
-| 0:45–1:20 | The AI's picks and its recommended mix. Drag the *Survey answers* slider and show the amounts change. Press *Approve*, log in to PayPal's sandbox window. | "Commfy's AI picks three communities and says why. It also recommends how the organisers get paid: this brand wants feedback, so most of the pay rewards survey answers. The brand can adjust it, then approves in PayPal. PayPal holds the whole budget, and each organiser gets 30% base pay straight away." Point at the money bar along the top. |
-| 1:20–1:55 | Press *Show door code*. Scan it with the phone, check in, answer the two questions. Show the wallet. | "At the door, members scan a code that changes every 30 seconds, on their own phone. Answering two quick questions puts one pound from the brand into their wallet, with the brand's name on it. No app, no account." Show the count go up on the big screen. |
-| 1:55–2:30 | Press *Fill the rest of the crowd*, tick the posts & photos bonus on the first community, then *Close events and pay out*. Open *Show how PayPal moves the money* to show every PayPal call. | "After the events, each organiser is paid on results: people there, survey answers and new faces, each up to its cap. The brand awards a bonus to the community that shared the night. PayPal captures only what was earned; the rest never leaves the brand." |
-| 2:30–2:45 | Scroll to the proof report. Then on the phone, press *Cash out*. | "The brand gets a proof report: who came, who answered, new faces, how welcome they felt and their answers, with no personal data. Members cash out to PayPal." |
-| 2:45–2:55 | The tagline on screen. | "Turnout. Brands pay only for people who showed up. Commfy: find your people IRL." |
+| 0:00–0:18 | The Turnout page, empty form | "Brands pay for reach they can't check, and community organisers pay for events out of their own pocket. Turnout lets a brand fund real community events and pay only for the people who showed up." |
+| 0:18–0:41 | Type the brand, goal, audience and £1,500 budget. Press *Ask Commfy*. | "A brand tells Commfy what it wants: here, a new oat drink wants feedback from active people in East London, with a budget of fifteen hundred pounds." |
+| 0:41–1:21 | The AI's picks and its recommended mix. Drag the *Survey answers* slider and show the amounts change. Press *Approve*, log in to PayPal's sandbox window. | "Commfy's AI picks three communities and says why. It also recommends how the organisers get paid: this brand wants feedback, so most of the pay rewards survey answers. The brand can adjust it, then approves in PayPal. PayPal holds the whole budget, and each organiser gets 30% base pay straight away." Point at the money bar along the top. |
+| 1:21–1:51 | Press *Show door code*. Scan it with the phone, check in, answer the two questions. Show the wallet. | "At the door, members scan a code that changes every 30 seconds, on their own phone. Answering two quick questions puts one pound from the brand into their wallet, with the brand's name on it. No app, no account." Show the count go up on the big screen. |
+| 1:51–2:18 | Press *Fill the rest of the crowd*, tick the posts & photos bonus on the first community, then *Close events and pay out*. Open *Show how PayPal moves the money* to show every PayPal call. | "After the events, each organiser is paid on results: people there, survey answers and new faces, each up to its cap. The brand awards a bonus to the community that shared the night. PayPal captures only what was earned; the rest never leaves the brand." |
+| 2:18–2:30 | Scroll to the proof report. Then on the phone, press *Cash out*. | "The brand gets a proof report: who came, who answered, new faces, how welcome they felt and their answers, with no personal data. Members cash out to PayPal." |
+| 2:30–2:39 | The tagline on screen. | "Turnout. Brands pay only for people who showed up. Commfy: find your people IRL." |
 
 Before recording: start a fresh request so the ledger is empty, and use a sandbox personal account email on the phone so the cash-out lands in the sandbox.
