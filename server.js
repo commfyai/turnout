@@ -293,6 +293,10 @@ app.post('/api/checkin', (req, res) => {
   list.push({ member: ref, at: new Date().toISOString(), via: 'own phone', codeWindow: w, location, answered, firstTime, belonging: answered ? rating : null, answer: answered ? brandAnswer : null })
 
   const wallet = walletFor(email)
+  // Demo seed again for a wallet that has already cashed out, so every demo run can reach the £2 cash-out.
+  if (credited && !wallet.entries.some((e) => e.status === 'available' || e.status === 'pending')) {
+    wallet.entries.push({ pence: 100, from: 'an earlier Turnout event (demo seed)', at: new Date().toISOString(), status: 'available' })
+  }
   if (credited) wallet.entries.push({ pence: RULES.perSurvey, from: c.request.brand, event: p.event.title, campaignId: c.id, at: new Date().toISOString(), status: 'pending' })
   res.json({ ok: true, member: ref, location, answered, firstTime, credited, wallet: walletView(wallet) })
 })
