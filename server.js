@@ -16,7 +16,7 @@ app.use(express.static(path.join(__dirname, 'public')))
 
 // ==================== RULES (draft numbers from the PRD) ====================
 const RULES = {
-  commfyShare: 0.15, // Commfy keeps 15% of what the brand actually pays for each community
+  commfyShare: 0.3, // Commfy keeps 30% of what the brand actually pays for each community
   base: 0.3, // organisers get 30% of their share as base pay when the brand approves
   goals: 0.6, // 60% is paid on results, split by the mix the AI recommends and the brand can adjust
   kicker: 0.1, // 10% posts-and-photos kicker, awarded at the brand's discretion

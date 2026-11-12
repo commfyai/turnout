@@ -18,7 +18,7 @@
       <h1>Turnout</h1>
       <p class="to-tagline">Brands pay only for people who showed up.</p>
     </div>
-    <div class="to-badges" id="badges"></div>
+    <p class="to-demo-note" id="badges"></p>
   </header>
 
   <ol class="to-timeline" id="timeline" aria-label="Steps">
@@ -30,27 +30,24 @@
     <li>Proof</li>
   </ol>
 
-  <main class="to-panels">
-    <section class="to-panel" aria-labelledby="brand-title">
-      <h2 id="brand-title">Brand</h2>
-      <div id="brand"></div>
-    </section>
-    <section class="to-panel" aria-labelledby="community-title">
-      <h2 id="community-title">Communities</h2>
-      <div id="communities"><p class="to-empty">Commfy's AI picks the communities once the brand sends its request.</p></div>
-    </section>
-    <section class="to-panel" aria-labelledby="payouts-title">
-      <h2 id="payouts-title">PayPal</h2>
-      <div id="money"><p class="to-empty">The PayPal hold and every payout appear here.</p></div>
-    </section>
+  <section class="to-strip" id="money" aria-label="Your money"></section>
+
+  <main class="to-layout">
+    <aside class="to-aside" id="brand" aria-label="Brand"></aside>
+    <section class="to-main" id="communities" aria-label="Communities"></section>
   </main>
 
-  <section class="to-ledger" aria-labelledby="ledger-title">
-    <h2 id="ledger-title">Payout ledger</h2>
-    <div id="ledger" class="ag-theme-quartz"></div>
-  </section>
-
   <section class="to-proof" id="proof" hidden aria-labelledby="proof-title"></section>
+
+  <details class="to-ledger" id="ledger-box">
+    <summary>
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Show how PayPal moves the money</span>
+      <span class="to-small" id="ledger-count"></span>
+    </summary>
+    <p class="to-small" id="ledger-ids"></p>
+    <div id="ledger" class="ag-theme-quartz"></div>
+  </details>
 
   <footer class="to-footer">
     Made-up communities and people. PayPal sandbox only, no real money. Open source (AGPL-3.0) by Commfy.
