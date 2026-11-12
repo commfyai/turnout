@@ -16,9 +16,11 @@ app.use(express.static(path.join(__dirname, 'public')))
 
 // ==================== RULES (draft numbers from the PRD) ====================
 const RULES = {
-  commfyShare: 0.15, // Commfy keeps 15% of each community's slice
-  deposit: 0.3, // organisers get 30% of their share when the brand approves
-  minTurnout: 0.6, // the rest is released only if 60% of sign-ups check in
+  commfyShare: 0.15, // Commfy keeps 15% of what the brand actually pays for each community
+  base: 0.3, // organisers get 30% of their share as base pay when the brand approves
+  goals: 0.6, // 60% is paid on results, split by the mix the AI recommends and the brand can adjust
+  kicker: 0.1, // 10% posts-and-photos kicker, awarded at the brand's discretion
+  newFacesTarget: 0.2, // new-faces pay is earned in full once 20% of sign-ups are new to the community
   perSurvey: 100, // £1 (in pence) into the member's wallet per survey answered at the event
   minCashOut: 200, // members cash out from £2
   codeSeconds: 30, // the door code changes every 30 seconds
@@ -31,6 +33,14 @@ const SECRET = process.env.CHECKIN_SECRET || crypto.randomBytes(16).toString('he
 // Everything lives in memory: a restart is a clean demo.
 const campaigns = new Map()
 const wallets = new Map()
+const seenAt = new Map() // communityId → member refs who have checked in there before (for "new faces")
+
+// The organiser's share: 30% base, 60% results (split by the mix), 10% kicker. Each pot is a cap.
+function potsFor(p, mix) {
+  const pot = (pct) => Math.round((p.organiser * pct) / 100)
+  const people = pot(mix.people), survey = pot(mix.survey), newFaces = pot(mix.newFaces)
+  return { people, survey, newFaces, kicker: p.organiser - p.deposit - people - survey - newFaces }
+}
 
 const gbp = (pence) => `£${(pence / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 // Keyed with the server secret so a reference can't be traced back to an email by guessing.
@@ -88,16 +98,18 @@ app.post('/api/campaigns', async (req, res) => {
     // Whole £1s only, so the members' part is always a whole number of check-ins.
     const members = Math.min(com.regulars, Math.floor((slice - commfy) / RULES.perSurvey)) * RULES.perSurvey
     const organiser = slice - commfy - members
-    const deposit = Math.round(organiser * RULES.deposit)
-    return {
+    const deposit = Math.round(organiser * RULES.base)
+    const row = {
       communityId: com.id, name: com.name, area: com.area, event: com.event, contact: com.organiser,
       reason: p.reason, weight: p.weight, signups: com.regulars,
-      slice, commfy, members, organiser, deposit, rest: organiser - deposit,
+      slice, commfy, members, organiser, deposit,
     }
+    row.pots = potsFor(row, match.mix)
+    return row
   })
 
   const id = crypto.randomBytes(5).toString('hex')
-  const c = { id, createdAt: new Date().toISOString(), stage: 'proposed', request, match, plan, checkins: {}, ledger: [], paypal: {} }
+  const c = { id, createdAt: new Date().toISOString(), stage: 'proposed', request, match, mix: { ...match.mix }, kickers: [], plan, checkins: {}, ledger: [], paypal: {} }
   plan.forEach((p) => { c.checkins[p.communityId] = [] })
   campaigns.set(id, c)
   if (campaigns.size > 300) campaigns.delete(campaigns.keys().next().value)
@@ -122,6 +134,27 @@ app.get('/api/campaigns/:id', async (req, res) => {
   const c = getCampaign(req, res)
   if (!c) return
   await refreshPayouts(c)
+  res.json(c)
+})
+
+// The brand adjusts the AI's recommended mix before approving; the server keeps it to 60%.
+app.post('/api/campaigns/:id/mix', (req, res) => {
+  const c = getCampaign(req, res)
+  if (!c) return
+  if (c.stage !== 'proposed') return res.status(409).json({ error: 'The mix is fixed once the brand approves.' })
+  c.mix = { ...ai.normaliseMix(req.body), reason: c.match.mix.reason }
+  c.plan.forEach((p) => { p.pots = potsFor(p, c.mix) })
+  res.json(c)
+})
+
+// Posts and photos are the brand's call: it ticks the kicker for each community before payouts.
+app.post('/api/campaigns/:id/kicker', (req, res) => {
+  const c = getCampaign(req, res)
+  if (!c) return
+  if (c.stage !== 'event') return res.status(409).json({ error: 'Kickers are awarded on event day, before payouts.' })
+  const { communityId, on } = req.body || {}
+  if (!c.plan.some((p) => p.communityId === communityId)) return res.status(404).json({ error: 'Event not found.' })
+  c.kickers = c.kickers.filter((x) => x !== communityId).concat(on ? [communityId] : [])
   res.json(c)
 })
 
@@ -165,15 +198,15 @@ app.post('/api/campaigns/:id/authorize', async (req, res) => {
     const depositTotal = deposits.reduce((s, p) => s + p.deposit, 0)
     c.paypal.captured = 0
     if (depositTotal > 0) {
-      const cap = await paypal.captureAuthorization(authorization.id, depositTotal, { finalCapture: false, note: 'Turnout: organiser deposits' })
+      const cap = await paypal.captureAuthorization(authorization.id, depositTotal, { finalCapture: false, note: 'Turnout: organiser base pay' })
       c.paypal.captured = depositTotal
-      ledger(c, { step: 'Hold', what: `Deposits captured from the hold (${RULES.deposit * 100}% of organiser shares)`, from: 'PayPal hold', to: 'Commfy', pence: depositTotal, api: 'Payments v2: capture (partial)', paypalId: cap.id, status: cap.status })
+      ledger(c, { step: 'Hold', what: `Base pay captured from the hold (${RULES.base * 100}% of organiser shares)`, from: 'PayPal hold', to: 'Commfy', pence: depositTotal, api: 'Payments v2: capture (partial)', paypalId: cap.id, status: cap.status })
 
       const batch = await paypal.sendPayouts(
-        deposits.map((p) => ({ email: p.contact.email, pence: p.deposit, note: `Deposit from ${c.request.brand} for ${p.event.title}`, ref: `${c.id}-dep-${p.communityId}`.slice(0, 63) })),
-        { subject: `Your deposit from ${c.request.brand} is here`, batchRef: `${c.id}-deposits` },
+        deposits.map((p) => ({ email: p.contact.email, pence: p.deposit, note: `Base pay from ${c.request.brand} for ${p.event.title}`, ref: `${c.id}-dep-${p.communityId}`.slice(0, 63) })),
+        { subject: `Your base pay from ${c.request.brand} is here`, batchRef: `${c.id}-deposits` },
       )
-      deposits.forEach((p) => ledger(c, { step: 'Hold', what: `Deposit to ${p.name}`, from: 'Commfy', to: p.contact.email, pence: p.deposit, api: 'Payouts v1: batch', paypalId: batch.batchId, status: batch.status }))
+      deposits.forEach((p) => ledger(c, { step: 'Hold', what: `Base pay to ${p.name}`, from: 'Commfy', to: p.contact.email, pence: p.deposit, api: 'Payouts v1: batch', paypalId: batch.batchId, status: batch.status }))
     }
     c.stage = 'event'
     res.json(c)
@@ -239,46 +272,57 @@ app.post('/api/checkin', (req, res) => {
   const codeOk = [w, w - 1, w - 2, w - 3].some((x) => doorCode(c.id, eventId, x) === String(code || '').toUpperCase())
   if (!codeOk) return res.status(400).json({ error: 'That door code has expired. Scan the code on the screen again.' })
   if (!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Add the email you use for PayPal so your £1 can reach you.' })
-  // The £1 is for the survey: both questions answered (any answer).
+  // The £1 is for the survey: both questions answered (any answer). Checking in alone counts as being there.
   const rating = [1, 2, 3, 4, 5].includes(Number(belonging)) ? Number(belonging) : null
   const brandAnswer = c.match.brandQuestion.options.includes(answer) ? answer : null
-  if (!rating || !brandAnswer) return res.status(400).json({ error: 'Answer both questions to get your £1.' })
+  const answered = Boolean(rating && brandAnswer)
 
   const ref = anon(email)
   const list = c.checkins[eventId]
-  if (list.some((x) => x.member === ref)) return res.status(409).json({ error: 'You have already answered for this event.', wallet: walletView(walletFor(email)) })
+  if (list.some((x) => x.member === ref)) return res.status(409).json({ error: 'You are already checked in to this event.', wallet: walletView(walletFor(email)) })
 
   const com = communityById(eventId)
   let location = 'not shared'
   if (Number.isFinite(lat) && Number.isFinite(lng)) location = distanceKm({ lat, lng }, com) <= 1 ? 'at venue' : 'away from venue'
+  if (!seenAt.has(eventId)) seenAt.set(eventId, new Set())
+  const firstTime = !seenAt.get(eventId).has(ref)
+  seenAt.get(eventId).add(ref)
   // £1 per survey only up to the members' part of this event's budget,
   // so wallets never hold more than the final capture takes.
-  const credited = (list.length + 1) * RULES.perSurvey <= p.members
-  list.push({ member: ref, at: new Date().toISOString(), via: 'own phone', codeWindow: w, location, belonging: rating, answer: brandAnswer })
+  const credited = answered && (list.filter((x) => x.answered).length + 1) * RULES.perSurvey <= p.members
+  list.push({ member: ref, at: new Date().toISOString(), via: 'own phone', codeWindow: w, location, answered, firstTime, belonging: answered ? rating : null, answer: answered ? brandAnswer : null })
 
   const wallet = walletFor(email)
   if (credited) wallet.entries.push({ pence: RULES.perSurvey, from: c.request.brand, event: p.event.title, campaignId: c.id, at: new Date().toISOString(), status: 'pending' })
-  res.json({ ok: true, member: ref, location, credited, wallet: walletView(wallet) })
+  res.json({ ok: true, member: ref, location, answered, firstTime, credited, wallet: walletView(wallet) })
 })
 
 // A button for judges: fill the rest of each crowd with simulated members.
-// The third event is deliberately left under the 60% minimum to show the safeguard.
+// Each community lands differently (turnout, answers, new faces) so the mix visibly changes the pay.
 app.post('/api/campaigns/:id/crowd', (req, res) => {
   const c = getCampaign(req, res)
   if (!c) return
   if (c.stage !== 'event') return res.status(409).json({ error: 'The crowd can only arrive on event day.' })
-  const targets = [0.83, 0.72, 0.45]
+  const crowds = [
+    { turnout: 0.85, answers: 0.9, newFaces: 0.25 },
+    { turnout: 0.7, answers: 0.6, newFaces: 0.1 },
+    { turnout: 0.45, answers: 0.75, newFaces: 0.3 },
+  ]
+  // Spread evenly instead of at random, so every run of the demo tells the same story.
+  const every = (k, rate) => Math.floor((k + 1) * rate) > Math.floor(k * rate)
   const opts = c.match.brandQuestion.options
   c.plan.forEach((p, i) => {
+    const { turnout, answers, newFaces } = crowds[i]
     const list = c.checkins[p.communityId]
-    const target = Math.round(p.signups * targets[i])
-    while (list.length < target) {
-      const r = Math.random()
+    const target = Math.round(p.signups * turnout)
+    for (let k = list.length; k < target; k++) {
+      const answered = every(k, answers)
       list.push({
-        member: `M-sim${String(list.length + 1).padStart(3, '0')}`,
+        member: `M-sim${String(k + 1).padStart(3, '0')}`,
         at: new Date().toISOString(), via: 'simulated phone', codeWindow: windowNow(), location: 'at venue',
-        belonging: r < 0.1 ? 3 : r < 0.55 ? 4 : 5,
-        answer: opts[Math.min(opts.length - 1, Math.floor(Math.random() ** 1.6 * opts.length))],
+        answered, firstTime: every(k, newFaces),
+        belonging: answered ? [5, 4, 5, 3, 4, 5, 4][k % 7] : null,
+        answer: answered ? opts[[0, 0, 1, 0, 1, 2, 0, 1, 0, 3][k % 10] % opts.length] : null,
       })
     }
   })
@@ -295,16 +339,30 @@ app.post('/api/campaigns/:id/release', async (req, res) => {
   c.busy = true
   try {
     const budget = c.request.budget * 100
+    // Each results pot pays in proportion to what happened, up to its cap; nothing above it.
+    const part = (count, target) => Math.min(1, count / Math.max(1, target))
     const results = c.plan.map((p) => {
-      const n = c.checkins[p.communityId].length
-      const met = n / p.signups >= RULES.minTurnout
-      const members = Math.min(n * RULES.perSurvey, p.members)
-      return { p, n, met, members, commfy: met ? p.commfy : 0, rest: met ? p.rest : 0 }
+      const list = c.checkins[p.communityId]
+      const n = list.length
+      const answered = list.filter((x) => x.answered).length
+      const newFaces = list.filter((x) => x.firstTime).length
+      const newTarget = Math.max(1, Math.round(p.signups * RULES.newFacesTarget))
+      const earned = {
+        people: Math.round(p.pots.people * part(n, p.signups)),
+        survey: Math.round(p.pots.survey * part(answered, p.signups)),
+        newFaces: Math.round(p.pots.newFaces * part(newFaces, newTarget)),
+        kicker: c.kickers.includes(p.communityId) ? p.pots.kicker : 0,
+      }
+      const rest = earned.people + earned.survey + earned.newFaces + earned.kicker
+      const members = Math.min(answered * RULES.perSurvey, p.members)
+      // Commfy keeps 15% of what the brand actually pays for this community (never more than its planned share).
+      const commfy = Math.min(p.commfy, Math.round(((p.deposit + rest + members) * RULES.commfyShare) / (1 - RULES.commfyShare)))
+      return { p, n, answered, newFaces, newTarget, earned, rest, members, commfy }
     })
     const toCapture = results.reduce((s, r) => s + r.members + r.commfy + r.rest, 0)
     if (toCapture > 0) {
-      const cap = await paypal.captureAuthorization(c.paypal.authorizationId, toCapture, { finalCapture: true, note: 'Turnout: released on verified check-ins' })
-      ledger(c, { step: 'Payouts', what: 'Final capture: earned on verified turnout (the rest of the hold goes back to the brand)', from: 'PayPal hold', to: 'Commfy', pence: toCapture, api: 'Payments v2: capture (final)', paypalId: cap.id, status: cap.status })
+      const cap = await paypal.captureAuthorization(c.paypal.authorizationId, toCapture, { finalCapture: true, note: 'Turnout: released on verified results' })
+      ledger(c, { step: 'Payouts', what: 'Final capture: earned on verified results (the rest of the hold goes back to the brand)', from: 'PayPal hold', to: 'Commfy', pence: toCapture, api: 'Payments v2: capture (final)', paypalId: cap.id, status: cap.status })
     } else {
       const v = await paypal.voidAuthorization(c.paypal.authorizationId)
       ledger(c, { step: 'Payouts', what: 'Nothing earned: hold voided', from: 'PayPal hold', to: c.request.brand, pence: 0, api: 'Payments v2: void', paypalId: v.id, status: v.status })
@@ -314,19 +372,18 @@ app.post('/api/campaigns/:id/release', async (req, res) => {
     if (returned > 0) ledger(c, { step: 'Payouts', what: 'Never captured: released back to the brand', from: 'PayPal hold', to: c.request.brand, pence: returned, api: toCapture > 0 ? 'Payments v2: final_capture' : 'Payments v2: void', paypalId: c.paypal.authorizationId, status: 'RELEASED' })
 
     const paid = results.filter((r) => r.rest > 0)
+    const breakdown = (r) => `people ${gbp(r.earned.people)} · answers ${gbp(r.earned.survey)} · new faces ${gbp(r.earned.newFaces)} · kicker ${gbp(r.earned.kicker)}`
     if (paid.length) {
       const batch = await paypal.sendPayouts(
-        paid.map((r) => ({ email: r.p.contact.email, pence: r.rest, note: `${c.request.brand}: the rest of your share, ${r.n} people checked in`, ref: `${c.id}-rest-${r.p.communityId}`.slice(0, 63) })),
-        { subject: `${c.request.brand} paid for your turnout`, batchRef: `${c.id}-release` },
+        paid.map((r) => ({ email: r.p.contact.email, pence: r.rest, note: `${c.request.brand}: your results pay. ${r.n} people, ${r.answered} survey answers, ${r.newFaces} new faces.`, ref: `${c.id}-rest-${r.p.communityId}`.slice(0, 63) })),
+        { subject: `${c.request.brand} paid for your results`, batchRef: `${c.id}-release` },
       )
-      paid.forEach((r) => ledger(c, { step: 'Payouts', what: `Rest of share to ${r.p.name} (${Math.round((r.n / r.p.signups) * 100)}% turnout)`, from: 'Commfy', to: r.p.contact.email, pence: r.rest, api: 'Payouts v1: batch', paypalId: batch.batchId, status: batch.status }))
+      paid.forEach((r) => ledger(c, { step: 'Payouts', what: `Results pay to ${r.p.name}: ${breakdown(r)}`, from: 'Commfy', to: r.p.contact.email, pence: r.rest, api: 'Payouts v1: batch', paypalId: batch.batchId, status: batch.status }))
     }
-    // Information only (no amount): this money is already counted in the "released back to the brand" row.
-    results.filter((r) => !r.met).forEach((r) => ledger(c, { step: 'Payouts', what: `${r.p.name} under ${RULES.minTurnout * 100}% turnout: organiser keeps the deposit; ${gbp(r.p.rest + r.p.commfy)} of this event's share is not taken from the brand`, from: 'PayPal hold', to: c.request.brand, pence: 0, api: '', paypalId: '', status: 'NOT TAKEN' }))
     const membersTotal = results.reduce((s, r) => s + r.members, 0)
     ledger(c, { step: 'Payouts', what: `Member wallets: £1 × ${membersTotal / 100} surveys answered at the events, ready to cash out`, from: 'Commfy', to: 'Member wallets', pence: membersTotal, api: 'Payouts v1 on cash-out', paypalId: '', status: 'AVAILABLE' })
     const commfyTotal = results.reduce((s, r) => s + r.commfy, 0)
-    ledger(c, { step: 'Payouts', what: `Commfy's ${RULES.commfyShare * 100}% on events that hit the minimum`, from: 'Commfy', to: 'Commfy', pence: commfyTotal, api: '', paypalId: '', status: 'KEPT' })
+    ledger(c, { step: 'Payouts', what: `Commfy's ${RULES.commfyShare * 100}% of what the brand paid`, from: 'Commfy', to: 'Commfy', pence: commfyTotal, api: '', paypalId: '', status: 'KEPT' })
 
     for (const w of wallets.values()) w.entries.forEach((e) => { if (e.campaignId === c.id && e.status === 'pending') e.status = 'available' })
 
@@ -349,11 +406,12 @@ function buildProof(c, results, returned, membersTotal, commfyTotal) {
   const counts = {}
   answers.forEach((x) => { counts[x.answer] = (counts[x.answer] || 0) + 1 })
   return {
-    headline: `${all.length} people checked in at ${results.length} events. ${c.request.brand} paid ${gbp(c.paypal.captured)} of ${gbp(c.request.budget * 100)}; ${gbp(returned)} was never taken.`,
+    headline: `${all.length} people checked in at ${results.length} events and ${all.filter((x) => x.answered).length} answered the survey. ${c.request.brand} paid ${gbp(c.paypal.captured)} of ${gbp(c.request.budget * 100)}; ${gbp(returned)} was never taken.`,
+    mix: c.mix,
     events: results.map((r) => ({
       name: r.p.name, event: r.p.event.title, signups: r.p.signups, checkedIn: r.n,
-      turnout: Math.round((r.n / r.p.signups) * 100), met: r.met,
-      organiserPaid: r.p.deposit + r.rest, membersPaid: r.members,
+      answered: r.answered, newFaces: r.newFaces, newTarget: r.newTarget, earned: r.earned, kicker: r.earned.kicker > 0,
+      organiserPaid: r.p.deposit + r.rest, organiserMax: r.p.organiser, membersPaid: r.members,
       atVenue: c.checkins[r.p.communityId].filter((x) => x.location === 'at venue').length,
     })),
     belonging: rated.length >= MIN_GROUP ? { average: Math.round((rated.reduce((s, x) => s + x.belonging, 0) / rated.length) * 10) / 10, answers: rated.length } : null,
@@ -366,8 +424,8 @@ function buildProof(c, results, returned, membersTotal, commfyTotal) {
 app.get('/api/campaigns/:id/checkins.csv', (req, res) => {
   const c = getCampaign(req, res)
   if (!c) return
-  const rows = [['event', 'member_ref', 'checked_in_at', 'via', 'code_window', 'location']]
-  c.plan.forEach((p) => c.checkins[p.communityId].forEach((x) => rows.push([p.name, x.member, x.at, x.via, x.codeWindow, x.location])))
+  const rows = [['event', 'member_ref', 'checked_in_at', 'via', 'code_window', 'location', 'answered_survey', 'new_to_community']]
+  c.plan.forEach((p) => c.checkins[p.communityId].forEach((x) => rows.push([p.name, x.member, x.at, x.via, x.codeWindow, x.location, x.answered ? 'yes' : 'no', x.firstTime ? 'yes' : 'no'])))
   res.type('text/csv').attachment(`turnout-checkins-${c.id}.csv`).send(rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'))
 })
 

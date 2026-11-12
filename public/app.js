@@ -101,18 +101,75 @@ function renderBrand(stage) {
       <p><strong>Survey question at the door:</strong> ${esc(m.brandQuestion.text)} <span class="to-small">(${m.brandQuestion.options.map(esc).join(' / ')})</span></p>
       ${m.note ? `<p class="to-small">${esc(m.note)}</p>` : ''}
     </div>
+    <div class="to-mix" id="mix"></div>
     <div id="approve"></div>
     <p class="to-error" id="approve-error"></p>
     <button class="to-btn to-btn--ghost" id="restart">Start a new request</button>`
   $('restart').onclick = () => { brandStage = null; setCampaign(null) }
+  renderMix(stage === 'proposed')
   if (stage === 'proposed') renderApprove()
-  else $('approve').innerHTML = `<p class="to-ok">Approved. PayPal holds ${gbp(r.budget * 100)}; nothing more is paid until people check in.</p>`
+  else $('approve').innerHTML = `<p class="to-ok">Approved. PayPal holds ${gbp(r.budget * 100)}; the rest is paid only on results.</p>`
+}
+
+// ==================== THE MIX: what the brand pays organisers for ====================
+const GOALS = [
+  { key: 'people', label: 'People there', hint: 'checked in at the door' },
+  { key: 'survey', label: 'Survey answers', hint: 'answered both questions' },
+  { key: 'newFaces', label: 'New faces', hint: 'first time with that community' },
+]
+
+// Moving one slider shares the change across the other two, so the three always add up to 60%.
+function rebalance(mix, key, value) {
+  const others = GOALS.map((g) => g.key).filter((k) => k !== key)
+  const left = 60 - value
+  const sum = others.reduce((s, k) => s + mix[k], 0)
+  const first = sum ? Math.round((left * mix[others[0]]) / sum) : Math.ceil(left / 2)
+  return { ...mix, [key]: value, [others[0]]: first, [others[1]]: left - first }
+}
+
+function renderMix(editable) {
+  const el = $('mix')
+  const ai = campaign.match.mix
+  const mix = campaign.mix
+  const row = (label, hint, pct, slider) => `
+    <div class="to-mix-row">
+      <span><strong>${label}</strong><br><span class="to-small">${hint}</span></span>
+      ${slider || '<span></span>'}
+      <span class="to-mix-pct">${pct}%</span>
+    </div>`
+  el.innerHTML = `
+    <p class="to-label">${campaign.match.source === 'ai' ? "Commfy's AI recommends this mix" : 'Suggested mix'}</p>
+    <p class="to-small">${esc(ai.reason)}${editable ? ' Drag to change it before you approve.' : ''}</p>
+    ${row('Base pay', 'when you approve', config.rules.base * 100)}
+    ${GOALS.map((g) => row(g.label, g.hint, mix[g.key], editable ? `<input type="range" min="0" max="60" step="1" value="${mix[g.key]}" data-goal="${g.key}" aria-label="${g.label}">` : `<span class="to-mix-bar"><span style="width:${(mix[g.key] / 60) * 100}%"></span></span>`)).join('')}
+    ${row('Posts &amp; photos kicker', 'your call after the event', config.rules.kicker * 100)}
+    ${editable && GOALS.some((g) => mix[g.key] !== ai[g.key]) ? '<button class="to-btn to-btn--ghost to-btn--small" id="mix-reset">Back to the AI\'s mix</button>' : ''}`
+  if (!editable) return
+  let draft = { ...mix }
+  let timer = null
+  const save = () => {
+    clearTimeout(timer)
+    timer = setTimeout(async () => {
+      try { campaign = await api(`/api/campaigns/${campaign.id}/mix`, { method: 'POST', body: draft }); renderCommunities(campaign.stage); renderMix(true) } catch (err) { $('approve-error').textContent = err.message }
+    }, 250)
+  }
+  el.querySelectorAll('input[data-goal]').forEach((input) => {
+    input.oninput = () => {
+      draft = rebalance(draft, input.dataset.goal, Number(input.value))
+      el.querySelectorAll('input[data-goal]').forEach((x) => {
+        x.value = draft[x.dataset.goal]
+        x.closest('.to-mix-row').querySelector('.to-mix-pct').textContent = `${draft[x.dataset.goal]}%`
+      })
+    }
+    input.onchange = save
+  })
+  if ($('mix-reset')) $('mix-reset').onclick = () => { draft = { people: ai.people, survey: ai.survey, newFaces: ai.newFaces }; save() }
 }
 
 function renderApprove() {
   const box = $('approve')
   const fail = (err) => { $('approve-error').textContent = err.message || String(err) }
-  box.innerHTML = `<p class="to-small">Approving puts a PayPal hold on the whole budget. Organisers get a ${config.rules.deposit * 100}% deposit now; the rest only if ${config.rules.minTurnout * 100}% of sign-ups check in.</p>`
+  box.innerHTML = `<p class="to-small">Approving puts a PayPal hold on the whole budget. Organisers get their ${config.rules.base * 100}% base pay now; the rest is paid on results, following the mix. Anything not earned is never taken.</p>`
   if (config.paypalClientId && window.paypal) {
     const holder = document.createElement('div')
     box.appendChild(holder)
@@ -145,11 +202,21 @@ function renderCommunities(stage) {
     el.innerHTML = `<p class="to-empty">Commfy's AI picks 2–3 of ${esc(config.communityCount)} made-up London communities once the brand sends its request.</p>`
     return
   }
-  const min = config.rules.minTurnout
   const cards = campaign.plan.map((p) => {
-    const n = campaign.checkins[p.communityId].length
-    const pct = Math.min(100, Math.round((n / p.signups) * 100))
+    const list = campaign.checkins[p.communityId]
     const result = campaign.proof?.events.find((e) => e.name === p.name)
+    const newTarget = Math.max(1, Math.round(p.signups * config.rules.newFacesTarget))
+    const counts = { people: [list.length, p.signups], survey: [list.filter((x) => x.answered).length, p.signups], newFaces: [list.filter((x) => x.firstTime).length, newTarget] }
+    const kickerOn = campaign.kickers.includes(p.communityId)
+    const meter = (g) => {
+      const [n, target] = counts[g.key]
+      const pct = Math.min(100, Math.round((n / target) * 100))
+      return `
+        <div class="to-meter">
+          <p class="to-small"><strong>${g.label}</strong> ${g.key === 'newFaces' ? `${n}, target ${target}` : `${n} of ${target}`} ·${result ? `earned ${gbp(result.earned[g.key])} of ${gbp(p.pots[g.key])}` : `up to ${gbp(p.pots[g.key])}`}</p>
+          <div class="to-bar" role="img" aria-label="${g.label}: ${n} of ${target}"><span style="width:${pct}%" class="${pct >= 100 ? 'is-met' : ''}"></span></div>
+        </div>`
+    }
     return `
       <article class="to-card">
         <h3>${esc(p.name)}</h3>
@@ -157,27 +224,32 @@ function renderCommunities(stage) {
         <p class="to-reason">${esc(p.reason)}</p>
         ${stage === 'proposed' ? `
           <dl class="to-split">
-            <div><dt>Organiser</dt><dd>${gbp(p.organiser)}</dd></div>
-            <div><dt>Members</dt><dd>${gbp(p.members)}</dd></div>
-            <div><dt>Commfy</dt><dd>${gbp(p.commfy)}</dd></div>
+            <div><dt>Organiser, up to</dt><dd>${gbp(p.organiser)}</dd></div>
+            <div><dt>Members, up to</dt><dd>${gbp(p.members)}</dd></div>
+            <div><dt>Commfy, up to</dt><dd>${gbp(p.commfy)}</dd></div>
           </dl>
-          <p class="to-small">Organiser: ${gbp(p.deposit)} deposit on approval, ${gbp(p.rest)} on proof. Members: £1 per survey answered.</p>` : `
-          <div class="to-bar" role="img" aria-label="${n} of ${p.signups} checked in">
-            <span style="width:${pct}%" class="${pct >= min * 100 ? 'is-met' : ''}"></span>
-            <i style="left:${min * 100}%"></i>
-          </div>
-          <p class="to-small"><strong>${n}</strong> of ${p.signups} checked in (${pct}%)${result ? (result.met ? ' · minimum met, paid' : ` · under ${min * 100}%, rest returned to brand`) : ''}</p>
-          ${stage === 'event' ? `<button class="to-btn to-btn--small" data-door="${esc(p.communityId)}" data-name="${esc(p.name)}">Show door code</button>` : ''}`}
+          <p class="to-small">Organiser: ${gbp(p.deposit)} base pay on approval · up to ${gbp(p.pots.people)} for people there · ${gbp(p.pots.survey)} for survey answers · ${gbp(p.pots.newFaces)} for new faces · ${gbp(p.pots.kicker)} posts &amp; photos kicker. Members: £1 per survey answered.</p>` : `
+          <p class="to-small">Base pay ${gbp(p.deposit)} paid on approval.</p>
+          ${GOALS.map(meter).join('')}
+          ${stage === 'event'
+            ? `<label class="to-check"><input type="checkbox" data-kicker="${esc(p.communityId)}" ${kickerOn ? 'checked' : ''}> Award the posts &amp; photos kicker (${gbp(p.pots.kicker)})</label>
+               <button class="to-btn to-btn--small" data-door="${esc(p.communityId)}" data-name="${esc(p.name)}">Show door code</button>`
+            : `<p class="to-small"><strong>Posts &amp; photos kicker</strong> ${result?.kicker ? `awarded, ${gbp(p.pots.kicker)}` : 'not awarded'} · <strong>Organiser paid ${gbp(result?.organiserPaid || 0)}</strong> of ${gbp(p.organiser)}</p>`}`}
       </article>`
   }).join('')
   el.innerHTML = cards + (stage === 'event' ? `
     <div class="to-actions">
       <button class="to-btn to-btn--ghost" id="crowd">Fill the rest of the crowd</button>
       <button class="to-btn" id="release">Close events and release payouts</button>
-      <p class="to-small">The crowd button adds simulated check-ins; the third event is left under ${min * 100}% to show the safeguard.</p>
+      <p class="to-small">The crowd button adds simulated members; each community lands differently, so you can see the mix change the pay. Nothing above a cap is paid, and nothing not earned is taken.</p>
       <p class="to-error" id="event-error"></p>
     </div>` : '')
   el.querySelectorAll('[data-door]').forEach((b) => { b.onclick = () => openDoor(b.dataset.door, b.dataset.name) })
+  el.querySelectorAll('[data-kicker]').forEach((box) => {
+    box.onchange = async () => {
+      try { setCampaign(await api(`/api/campaigns/${campaign.id}/kicker`, { method: 'POST', body: { communityId: box.dataset.kicker, on: box.checked } })) } catch (err) { $('event-error').textContent = err.message }
+    }
+  })
   if (stage === 'event') {
     $('crowd').onclick = async () => { try { setCampaign(await api(`/api/campaigns/${campaign.id}/crowd`, { method: 'POST' })) } catch (err) { $('event-error').textContent = err.message } }
     $('release').onclick = async (e) => {
@@ -219,12 +291,14 @@ function renderProof() {
   el.innerHTML = `
     <h2 id="proof-title">Proof report for ${esc(campaign.request.brand)}</h2>
     <p class="to-headline">${esc(pr.headline)}</p>
+    <p class="to-small">Paid on the mix you approved: ${GOALS.map((g) => `${g.label.toLowerCase()} ${pr.mix[g.key]}%`).join(' · ')}, plus ${config.rules.base * 100}% base and the ${config.rules.kicker * 100}% kicker.</p>
     <table class="to-table">
-      <thead><tr><th>Community</th><th>Signed up</th><th>Checked in</th><th>Turnout</th><th>At venue</th><th>Organiser paid</th><th>Members paid</th></tr></thead>
+      <thead><tr><th>Community</th><th>Signed up</th><th>Checked in</th><th>Answered</th><th>New faces</th><th>At venue</th><th>Kicker</th><th>Organiser paid</th><th>Members paid</th></tr></thead>
       <tbody>${pr.events.map((e) => `
         <tr><td>${esc(e.name)}<br><span class="to-small">${esc(e.event)}</span></td><td>${e.signups}</td><td>${e.checkedIn}</td>
-        <td>${e.turnout}% ${e.met ? '<span class="to-pill is-met">paid</span>' : '<span class="to-pill">under minimum</span>'}</td>
-        <td>${e.atVenue}</td><td>${gbp(e.organiserPaid)}</td><td>${gbp(e.membersPaid)}</td></tr>`).join('')}
+        <td>${e.answered}</td><td>${e.newFaces}</td><td>${e.atVenue}</td>
+        <td>${e.kicker ? '<span class="to-pill is-met">awarded</span>' : '<span class="to-pill">no</span>'}</td>
+        <td>${gbp(e.organiserPaid)}<br><span class="to-small">of ${gbp(e.organiserMax)}</span></td><td>${gbp(e.membersPaid)}</td></tr>`).join('')}
       </tbody>
     </table>
     <div class="to-proof-grid">

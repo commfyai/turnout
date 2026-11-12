@@ -86,6 +86,21 @@ a { color: #DD4826; font-weight: 700; }
 .to-bar span { display: block; height: 100%; background: #AFB1B6; transition: width 0.4s ease; }
 .to-bar span.is-met { background: #DD4826; }
 .to-bar i { position: absolute; top: 0; bottom: 0; width: 2px; background: #1B1814; }
+
+/* ==================== MIX + RESULTS ==================== */
+.to-mix { padding: 12px; margin-bottom: 12px; border: 1px solid #E5E7EB; border-radius: 6px; }
+.to-mix > p { margin: 0 0 8px; }
+.to-mix-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 44px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid #F1F1F1; }
+.to-mix-row input[type="range"] { width: 100%; accent-color: #DD4826; }
+.to-mix-pct { font-weight: 700; text-align: right; }
+.to-mix-bar { display: block; height: 8px; background: #E5E7EB; border-radius: 6px; overflow: hidden; }
+.to-mix-bar span { display: block; height: 100%; background: #DD4826; }
+.to-mix .to-btn--small { margin-top: 8px; }
+.to-meter { margin: 6px 0; }
+.to-meter .to-small { margin: 0; }
+.to-meter .to-bar { margin: 4px 0 0; height: 8px; }
+.to-check { display: flex; gap: 8px; align-items: center; margin: 10px 0; font-size: 14px; font-weight: 600; cursor: pointer; }
+.to-check input { width: 18px; height: 18px; accent-color: #DD4826; }
 .to-actions { margin-top: 12px; }
 .to-pill { display: inline-block; padding: 1px 8px; border-radius: 10px; background: #E5E7EB; font-size: 12px; font-weight: 700; }
 .to-pill.is-met { background: #DD4826; color: #FFFBF5; }

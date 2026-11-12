@@ -49,31 +49,32 @@
         <form id="f" class="to-form">
           <label>Your PayPal email<input name="email" type="email" required value="${esc(email)}" placeholder="you@example.com"></label>
           <fieldset><legend>How welcome did you feel tonight?</legend>
-            <div class="to-scale">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="belonging" value="${n}" required><span>${n}</span></label>`).join('')}</div>
+            <div class="to-scale">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="belonging" value="${n}"><span>${n}</span></label>`).join('')}</div>
           </fieldset>
           <fieldset><legend>${esc(bq.text)}</legend>
-            <div class="to-choices">${bq.options.map((o) => `<label><input type="radio" name="answer" value="${esc(o)}" required><span>${esc(o)}</span></label>`).join('')}</div>
+            <div class="to-choices">${bq.options.map((o) => `<label><input type="radio" name="answer" value="${esc(o)}"><span>${esc(o)}</span></label>`).join('')}</div>
           </fieldset>
-          <p class="to-small">Your £1 is paid whatever you answer. Your location is checked once against the venue.</p>
-          <button class="to-btn" type="submit">Send answers and get £1</button>
+          <p class="to-small">Answer both for your £1; it's paid whatever you answer. You can also just check in. Your location is checked once against the venue.</p>
+          <button class="to-btn" type="submit">Check in</button>
           <p class="to-error" id="err"></p>
         </form>`
       $('f').addEventListener('submit', async (e) => {
         e.preventDefault()
         const btn = e.target.querySelector('button')
         btn.disabled = true
-        btn.textContent = 'Sending…'
+        btn.textContent = 'Checking in…'
         const form = Object.fromEntries(new FormData(e.target))
         email = form.email
         localStorage.setItem('turnout-email', email)
         try {
           const out = await api('/api/checkin', { method: 'POST', body: { ...ids, ...form, ...(await getLocation()) } })
-          showWallet(out.wallet, `Thanks for answering. Location: ${out.location}.${out.credited ? '' : " This event's survey rewards are all paid out."}`, ev.brand)
+          const reward = !out.answered ? ' You skipped the questions, so no £1 this time.' : out.credited ? ' Thanks for answering: your £1 is on its way.' : " This event's survey rewards are all paid out."
+          showWallet(out.wallet, `You're checked in. Location: ${out.location}.${reward}`, ev.brand)
         } catch (err) {
           if (err.data?.wallet) return showWallet(err.data.wallet, err.message, ev.brand)
           $('err').textContent = err.message
           btn.disabled = false
-          btn.textContent = 'Send answers and get £1'
+          btn.textContent = 'Check in'
         }
       })
     }
